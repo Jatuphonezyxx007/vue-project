@@ -1,100 +1,93 @@
 var express = require("express");
 var router = express.Router();
-var userSchema = require("../models/user.model");
-const { Query } = require("mongoose");
+var User = require("../models/user.model");
+var Information = require("../models/information.model"); // อย่าลืมสร้างไฟล์นี้ตามที่คุยกันก่อนหน้า
+var Role = require("../models/role.model"); // อย่าลืมสร้างไฟล์นี้ตามที่คุยกันก่อนหน้า
 const multer = require("multer");
 const bcrypt = require("bcrypt");
 
 const upload = multer();
 
-// All Users
+// Get All Users (พร้อมข้อมูล Information)
 router.get("/", async function (req, res, next) {
   try {
-    let users = await userSchema.find({});
+    // ดึง User ทั้งหมดและ join ข้อมูล role ออกมาด้วย
+    let users = await User.find({ deleted_at: null }).populate("role_id");
     res.send(users);
   } catch (error) {
     console.log(error);
-    res.send(error);
+    res.status(500).send(error);
   }
 });
 
-// Add User
-// name: { type: String, required: true },
-// last_name: { type: String, required: true },
-// email: { type: String, required: true },
-// phone: { type: String, required: true },
-// bod: { type: Date, required: true },
-// username: { type: String, required: true },
-// password: { type: String, required: true },
-// role: { type: String, enum: ["admin", "user"], default: "user" },
-
-// router.post("/", upload.none(), async function (req, res, next) {
-//   try {
-//     let { name, last_name, email, phone, bod, username, password, role } =
-//       req.body;
-
-//     let existingUser = await userSchema.findOne({ username: username });
-
-//     if (existingUser) {
-//       return res.status(400).json({ message: "Username นี้มีการใช้งานแล้ว" });
-//     }
-
-//     let user = new userSchema({
-//       name: name,
-//       last_name: last_name,
-//       email: email,
-//       phone: phone,
-//       username: username,
-//       password: await bcrypt.hash(password, 10),
-//       role: role || "user",
-//     });
-//     await user.save();
-//     res.status(201).json({ message: "add user successfully!!" });
-//   } catch (error) {
-//     console.error(error);
-//     res.status(500).json({ message: "Error!" });
-//   }
-// });
+// Register / Create User
 router.post("/", upload.none(), async function (req, res, next) {
   try {
+    // 1. รับค่าจาก Request (Postman)
+    // หมายเหตุ: ใน Postman ให้ส่ง key ว่า 'password' เหมือนเดิมได้เลย โค้ดจะแปลงเป็น 'pwd' ให้เอง
     let {
-      name,
-      last_name,
+      username,
+      password, // รับค่า password
       email,
       phone,
-      bod,
-      username,
-      password,
-      role,
-      user_image,
+      name, // ชื่อจริง (จะไปลงตาราง informations)
+      last_name, // นามสกุล (จะไปลงตาราง informations)
+      bod, // วันเกิด (YYYY-MM-DD)
+      role_id, // ถ้ามี (ถ้าไม่มีระบบจะตั้งเป็น default user)
     } = req.body;
 
-    // 2. ใช้ Model ("User") ในการค้นหา
-    let existingUser = await userSchema.findOne({ username: username });
-
+    // 2. ตรวจสอบว่ามี Username หรือ Email ซ้ำไหม
+    let existingUser = await User.findOne({ $or: [{ username }, { email }] });
     if (existingUser) {
-      return res.status(400).json({ message: "Username นี้มีการใช้งานแล้ว" });
+      return res
+        .status(400)
+        .json({ message: "Username หรือ Email นี้มีการใช้งานแล้ว" });
     }
 
-    // 3. ใช้ Model ("User") ในการสร้าง
-    let user = new userSchema({
-      name: name,
-      last_name: last_name,
+    // 3. ตรวจสอบ Role (ถ้าไม่ได้ส่ง role_id มา จะหา Role ที่ชื่อ 'user' ให้)
+    if (!role_id) {
+      let defaultRole = await Role.findOne({ role_name: "user" });
+      // ถ้ายังไม่มี Role ในระบบเลย ให้สร้างใหม่แก้ขัดไปก่อน
+      if (!defaultRole) {
+        defaultRole = await Role.create({
+          role_name: "user",
+          role_description: "General User",
+        });
+      }
+      role_id = defaultRole._id;
+    }
+
+    // 4. สร้างข้อมูล User (ส่วน Login)
+    let newUser = new User({
+      username: username,
       email: email,
       phone: phone,
-      bod: bod, // <-- 4. [สำคัญ] เพิ่มบรรทัดนี้เข้าไป
-      username: username,
-      password: await bcrypt.hash(password, 10),
-      role: role || "user",
-      user_image: user_image,
+      pwd: await bcrypt.hash(password, 10), // Hash password เก็บลง pwd
+      role_id: role_id,
     });
+    const savedUser = await newUser.save(); // บันทึกลง DB และจะได้ _id กลับมา
 
-    await user.save();
-    res.status(201).json({ message: "add user successfully!!" });
+    // 5. สร้างข้อมูล Information (ส่วนข้อมูลส่วนตัว) โดยใช้ _id จากข้อ 4
+    if (name || last_name) {
+      let newInfo = new Information({
+        user_id: savedUser._id, // ผูก Foreign Key
+        first_name: name,
+        last_name: last_name,
+        birth_day: bod || null,
+      });
+      await newInfo.save();
+    }
+
+    res.status(201).json({
+      message: "สร้างบัญชีผู้ใช้สำเร็จ",
+      data: {
+        _id: savedUser._id,
+        username: savedUser.username,
+      },
+    });
   } catch (error) {
     console.error(error);
-    // ถ้า bod ผิด format หรือขาดไป Mongoose จะโยน Error มาที่นี่
-    res.status(500).json({ message: "Error!", error: error.message });
+    res.status(500).json({ message: "เกิดข้อผิดพลาด!", error: error.message });
   }
 });
 

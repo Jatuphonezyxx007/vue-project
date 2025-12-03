@@ -1,22 +1,17 @@
-const e = require("express");
 const mongoose = require("mongoose");
-const Schema = mongoose.Schema;
 
-const userSchema = new Schema(
+const schema = new mongoose.Schema(
   {
-    name: { type: String, required: true },
-    last_name: { type: String, required: true },
-    email: { type: String, required: true },
-    phone: { type: String },
-    bod: { type: Date },
-    username: { type: String, required: true },
-    password: { type: String, required: true },
-    role: { type: String, enum: ["admin", "user"], default: "user" },
-    user_image: { type: String },
+    username: { type: String, required: true, unique: true },
+    email: { type: String, required: true, unique: true },
+    phone: { type: String, default: "" },
+    pwd: { type: String, required: true }, // รหัสผ่าน (แนะนำให้ Hash ก่อนบันทึก)
+    role_id: { type: mongoose.Schema.Types.ObjectId, ref: "Role" }, // เชื่อมกับตาราง Role
+    deleted_at: { type: Date, default: null }, // สำหรับ Soft Delete
   },
   {
-    timestamps: true,
+    timestamps: { createdAt: "created_at", updatedAt: "updated_at" },
   }
 );
 
-module.exports = mongoose.model("user", userSchema);
+module.exports = mongoose.model("User", schema);
