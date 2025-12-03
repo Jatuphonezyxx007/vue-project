@@ -1,0 +1,70 @@
+# Node dependencies
+/node_modules/
+/npm-debug.log*
+/yarn-debug.log*
+/yarn-error.log*
+/pnpm-debug.log*
+
+# Production build (Vue2 dist folder)
+dist/
+build/
+
+# Local environment files
+.env
+.env.local
+.env.*.local
+
+# Logs
+logs/
+*.log
+log.txt
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+
+# Cache files
+/.cache/
+/temp/
+/tmp/
+*.tmp
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Optional for Vue CLI
+/public/hot
+/public/*.hot-update.*
+/public/service-worker.js
+/public/manifest.json
+
+# Coverage
+/coverage/
+
+# Test result
+/junit.xml
+
+# Local DB (ห้าม push)
+*.sqlite
+*.db
+*.sql
+dump.sql
+backup/
+database/
+db/
+
+# Docker
+docker-data/
+
+# PM2 Runtime
+.pids
+*.pid
+*.seed
+
+# TypeScript (ถ้ามี)
+*.tsbuildinfo
+
+# Git
+.git/
